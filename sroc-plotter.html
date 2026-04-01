@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SROCPlotter — Interactive SROC Curve Generator</title>
+<style>
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f8f9fa; --surface: #ffffff; --surface2: #f1f3f5;
+  --border: #dee2e6; --text: #212529; --text2: #6c757d;
+  --accent: #2563eb; --accent-h: #1d4ed8; --accent-light: #dbeafe;
+  --danger: #dc3545; --success: #198754; --warning: #fd7e14;
+  --radius: 8px; --shadow: 0 2px 8px rgba(0,0,0,.1);
+}
+body.dark {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a;
+  --border: #2d3248; --text: #e2e8f0; --text2: #8892b0;
+  --accent: #60a5fa; --accent-h: #93c5fd; --accent-light: #1e3a5f;
+  --danger: #f87171; --success: #4ade80; --warning: #fb923c;
+  --shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh; transition: background .2s, color .2s;
+}
+/* ── Header ── */
+.app-header {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 12px 20px; display: flex; align-items: center; gap: 12px;
+  position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow);
+}
+.app-header h1 { font-size: 1.2rem; font-weight: 700; color: var(--accent); flex: 1; }
+.app-header .subtitle { font-size: .8rem; color: var(--text2); }
+.btn-icon {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: var(--radius); padding: 6px 12px;
+  cursor: pointer; font-size: .85rem; transition: all .15s;
+}
+.btn-icon:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+/* ── Tabs ── */
+.tabs-nav {
+  display: flex; gap: 0; background: var(--surface);
+  border-bottom: 1px solid var(--border); padding: 0 20px; overflow-x: auto;
+}
+.tab-btn {
+  background: none; border: none; border-bottom: 3px solid transparent;
+  padding: 12px 20px; cursor: pointer; font-size: .9rem; font-weight: 500;
+  color: var(--text2); white-space: nowrap; transition: all .15s;
+}
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-btn:hover:not(.active) { color: var(--text); background: var(--surface2); }
+.tab-panel { display: none; padding: 20px; }
+.tab-panel.active { display: block; }
+/* ── Layout ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+}
+.card-title { font-size: .95rem; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+/* ── Form Elements ── */
+label { font-size: .82rem; font-weight: 500; color: var(--text2); display: block; margin-bottom: 3px; }
+input[type="text"], input[type="number"], textarea, select {
+  width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: .88rem; background: var(--bg);
+  color: var(--text); transition: border-color .15s;
+}
+input:focus, textarea:focus, select:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light);
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 6px; border: none;
+  font-size: .88rem; font-weight: 500; cursor: pointer; transition: all .15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-h); }
+.btn-secondary { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+.btn-secondary:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { opacity: .85; }
+.btn-sm { padding: 4px 10px; font-size: .8rem; }
+/* ── Study Table ── */
+.study-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.study-table th {
+  background: var(--surface2); padding: 7px 8px; text-align: left;
+  font-weight: 600; border: 1px solid var(--border); color: var(--text2);
+  white-space: nowrap;
+}
+.study-table td {
+  padding: 5px 8px; border: 1px solid var(--border);
+  vertical-align: middle;
+}
+.study-table tr:hover td { background: var(--accent-light); }
+.study-table input[type="number"] { width: 60px; padding: 4px 6px; }
+.study-table input[type="text"] { width: 120px; padding: 4px 6px; }
+/* ── Stats ── */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.stat-card {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px; text-align: center;
+}
+.stat-value { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+.stat-ci { font-size: .78rem; color: var(--text2); margin-top: 2px; }
+.stat-label { font-size: .8rem; color: var(--text2); margin-top: 4px; }
+/* ── Canvas area ── */
+.canvas-wrap {
+  position: relative; border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; background: var(--surface);
+}
+#srocCanvas { display: block; max-width: 100%; cursor: crosshair; }
+.canvas-tooltip {
+  position: absolute; background: rgba(0,0,0,.85); color: #fff;
+  padding: 6px 10px; border-radius: 6px; font-size: .78rem;
+  pointer-events: none; display: none; max-width: 180px; z-index: 10;
+}
+/* ── Customization panel ── */
+.ctrl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; align-items: center; }
+.ctrl-item { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.ctrl-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+.ctrl-item input[type="color"] { width: 36px; height: 28px; padding: 1px; cursor: pointer; border-radius: 4px; }
+/* ── Per-study table ── */
+.stats-table { width: 100%; border-collapse: collapse; font-size: .8rem; margin-top: 12px; }
+.stats-table th { background: var(--surface2); padding: 6px 8px; border: 1px solid var(--border); font-weight: 600; text-align: center; white-space: nowrap; }
+.stats-table td { padding: 5px 8px; border: 1px solid var(--border); text-align: center; }
+.stats-table tr:nth-child(even) td { background: var(--surface2); }
+/* ── Badges ── */
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 12px;
+  font-size: .72rem; font-weight: 600;
+}
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-danger  { background: #fee2e2; color: #991b1b; }
+body.dark .badge-success { background: #14532d; color: #4ade80; }
+body.dark .badge-warning { background: #451a03; color: #fb923c; }
+body.dark .badge-danger  { background: #450a0a; color: #f87171; }
+/* ── Alert ── */
+.alert {
+  padding: 10px 14px; border-radius: 6px; font-size: .85rem; margin-bottom: 12px;
+  border-left: 4px solid;
+}
+.alert-info { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.alert-warning { background: #fef3c7; border-color: var(--warning); color: #92400e; }
+body.dark .alert-warning { background: #451a03; color: #fb923c; }
+/* ── Export buttons ── */
+.export-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.export-card {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; text-align: center;
+  cursor: pointer; transition: all .15s;
+}
+.export-card:hover { background: var(--accent-light); border-color: var(--accent); }
+.export-card .export-icon { font-size: 2rem; margin-bottom: 8px; }
+.export-card .export-title { font-weight: 600; font-size: .9rem; }
+.export-card .export-desc { font-size: .78rem; color: var(--text2); margin-top: 4px; }
+/* ── Legend ── */
+.legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: .8rem; align-items: center; }
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+.legend-line { width: 24px; height: 3px; }
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .two-col { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .tab-btn { padding: 10px 12px; font-size: .82rem; }
+}
+/* ── CSV paste area ── */
+.paste-area { height: 100px; resize: vertical; font-family: monospace; font-size: .8rem; }
+/* ── Divider ── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+/* ── Scrollable table container ── */
+.table-scroll { overflow-x: auto; }
+/* ── Info tooltip ── */
+.info-tip { display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: var(--accent-light); color: var(--accent); text-align: center; line-height: 16px; font-size: .7rem; font-weight: 700; cursor: help; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="app-header">
+  <div>
+    <h1>SROCPlotter</h1>
+    <div class="subtitle">Interactive SROC Curve Generator for Diagnostic Test Accuracy Meta-Analysis</div>
+  </div>
+  <button class="btn-icon" id="darkToggle" onclick="toggleDark()" title="Toggle dark mode">&#9788;</button>
+</header>
+
+<!-- Tab Navigation -->
+<nav class="tabs-nav" role="tablist">
+  <button class="tab-btn active" role="tab" aria-selected="true"  onclick="switchTab('data')"    id="tab-data">    &#9998; Study Data</button>
+  <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchTab('plot')"    id="tab-plot">    &#128200; SROC Plot</button>
+  <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchTab('stats')"   id="tab-stats">   &#128203; Statistics</button>
+  <button class="tab-btn"        role="tab" aria-selected="false" onclick="switchTab('export')"  id="tab-export">  &#128228; Export</button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB 1: Study Data Entry                                        -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel active" id="panel-data">
+  <div style="max-width:1200px; margin:0 auto;">
+    <div class="two-col" style="margin-bottom:16px;">
+      <!-- Left: Add study -->
+      <div class="card">
+        <div class="card-title">&#43; Add Study</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div style="grid-column:1/-1;">
+            <label>Study Name</label>
+            <input type="text" id="inp-name" placeholder="Author Year" />
+          </div>
+          <div>
+            <label>TP (True Positives)</label>
+            <input type="number" id="inp-tp" min="0" step="1" placeholder="0" />
+          </div>
+          <div>
+            <label>FP (False Positives)</label>
+            <input type="number" id="inp-fp" min="0" step="1" placeholder="0" />
+          </div>
+          <div>
+            <label>FN (False Negatives)</label>
+            <input type="number" id="inp-fn" min="0" step="1" placeholder="0" />
+          </div>
+          <div>
+            <label>TN (True Negatives)</label>
+            <input type="number" id="inp-tn" min="0" step="1" placeholder="0" />
+          </div>
+        </div>
+        <!-- Auto-calc preview -->
+        <div id="calcPreview" style="margin-top:10px; font-size:.82rem; color:var(--text2); min-height:36px;"></div>
+        <div style="margin-top:10px; display:flex; gap:8px;">
+          <button class="btn btn-primary" onclick="addStudy()">Add Study</button>
+          <button class="btn btn-secondary" onclick="clearInputs()">Clear</button>
+        </div>
+      </div>
+
+      <!-- Right: CSV paste + examples -->
+      <div class="card">
+        <div class="card-title">&#128203; Import Data</div>
+        <label>Paste CSV (Name,TP,FP,FN,TN — one row per line)</label>
+        <textarea class="paste-area" id="csvPaste" placeholder="Troponin 2012,48,12,5,135&#10;CRP 2015,30,40,10,120"></textarea>
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="importCSV()">Import CSV</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadExample(1)">Example 1: Troponin/MI</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadExample(2)">Example 2: CRP/Infection</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadExample(3)">Example 3: D-dimer/PE</button>
+        </div>
+        <div style="margin-top:8px;">
+          <label>Continuity correction: <input type="checkbox" id="ccBox" checked onchange="recompute()"> +0.5 for zero cells</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Studies table -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div class="card-title" style="margin:0;">&#128202; Studies (<span id="studyCount">0</span>)</div>
+        <button class="btn btn-danger btn-sm" onclick="clearAllStudies()">Clear All</button>
+      </div>
+      <div class="table-scroll">
+        <table class="study-table" id="studyTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Study</th>
+              <th>TP</th>
+              <th>FP</th>
+              <th>FN</th>
+              <th>TN</th>
+              <th>N</th>
+              <th>Se (%)</th>
+              <th>Sp (%)</th>
+              <th>DOR</th>
+              <th>LR+</th>
+              <th>LR-</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="studyTbody">
+            <tr id="emptyRow">
+              <td colspan="13" style="text-align:center; color:var(--text2); padding:20px;">
+                No studies yet. Add studies above or load an example.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB 2: SROC Plot                                               -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-plot">
+  <div style="max-width:1200px; margin:0 auto;">
+    <div class="two-col">
+      <!-- Canvas -->
+      <div>
+        <div class="canvas-wrap">
+          <canvas id="srocCanvas" width="560" height="520"></canvas>
+          <div class="canvas-tooltip" id="canvasTooltip"></div>
+        </div>
+        <div class="legend" id="srocLegend">
+          <div class="legend-item"><div class="legend-dot" style="background:#2563eb;"></div> Study (bubble ∝ N)</div>
+          <div class="legend-item"><div class="legend-line" style="background:#e11d48;"></div> SROC Curve</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#16a34a; width:14px; height:14px; border-radius:50%; outline: 3px solid #16a34a;"></div> Summary Point</div>
+          <div class="legend-item"><div class="legend-line" style="background:#7c3aed; border-top: 2px dashed #7c3aed;"></div> 95% CI Ellipse</div>
+          <div class="legend-item"><div class="legend-line" style="background:#d97706; border-top: 2px dotted #d97706;"></div> 95% PI Ellipse</div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div>
+        <div class="card">
+          <div class="card-title">&#127775; Display Options</div>
+          <div class="ctrl-grid">
+            <div class="ctrl-item">
+              <input type="checkbox" id="chk-points" checked onchange="drawSROC()">
+              <label style="margin:0;" for="chk-points">Study Points</label>
+            </div>
+            <div class="ctrl-item">
+              <input type="checkbox" id="chk-labels" checked onchange="drawSROC()">
+              <label style="margin:0;" for="chk-labels">Study Labels</label>
+            </div>
+            <div class="ctrl-item">
+              <input type="checkbox" id="chk-curve" checked onchange="drawSROC()">
+              <label style="margin:0;" for="chk-curve">SROC Curve</label>
+            </div>
+            <div class="ctrl-item">
+              <input type="checkbox" id="chk-summary" checked onchange="drawSROC()">
+              <label style="margin:0;" for="chk-summary">Summary Point</label>
+            </div>
+            <div class="ctrl-item">
+              <input type="checkbox" id="chk-ci" checked onchange="drawSROC()">
+              <label style="margin:0;" for="chk-ci">95% CI Ellipse</label>
+            </div>
+            <div class="ctrl-item">
+              <input type="checkbox" id="chk-pi" checked onchange="drawSROC()">
+              <label style="margin:0;" for="chk-pi">95% PI Ellipse</label>
+            </div>
+            <div class="ctrl-item">
+              <input type="checkbox" id="chk-chance" checked onchange="drawSROC()">
+              <label style="margin:0;" for="chk-chance">Chance Line</label>
+            </div>
+            <div class="ctrl-item">
+              <input type="checkbox" id="chk-grid" checked onchange="drawSROC()">
+              <label style="margin:0;" for="chk-grid">Grid Lines</label>
+            </div>
+          </div>
+          <hr class="divider">
+          <div class="ctrl-grid">
+            <div class="ctrl-item">
+              <label style="margin:0;">Bubble color</label>
+              <input type="color" id="col-bubble" value="#2563eb" onchange="drawSROC()">
+            </div>
+            <div class="ctrl-item">
+              <label style="margin:0;">Curve color</label>
+              <input type="color" id="col-curve" value="#e11d48" onchange="drawSROC()">
+            </div>
+            <div class="ctrl-item">
+              <label style="margin:0;">Summary color</label>
+              <input type="color" id="col-summary" value="#16a34a" onchange="drawSROC()">
+            </div>
+            <div class="ctrl-item">
+              <label style="margin:0;">CI ellipse color</label>
+              <input type="color" id="col-ci" value="#7c3aed" onchange="drawSROC()">
+            </div>
+            <div class="ctrl-item">
+              <label style="margin:0;">PI ellipse color</label>
+              <input type="color" id="col-pi" value="#d97706" onchange="drawSROC()">
+            </div>
+          </div>
+          <hr class="divider">
+          <div style="display:flex; gap:8px; align-items:center; font-size:.85rem; flex-wrap:wrap;">
+            <label style="margin:0;">Bubble scale:</label>
+            <input type="range" id="bubbleScale" min="0.5" max="3" step="0.1" value="1" style="width:120px;" oninput="drawSROC()">
+            <span id="bubbleScaleVal">1.0×</span>
+          </div>
+        </div>
+
+        <!-- SROC Summary box -->
+        <div class="card" style="margin-top:14px;" id="srocSummaryBox">
+          <div class="card-title">&#128200; SROC Parameters</div>
+          <div id="srocParamText" style="font-size:.85rem; color:var(--text2);">
+            Add at least 2 studies to compute SROC.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB 3: Statistics                                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-stats">
+  <div style="max-width:1100px; margin:0 auto;">
+    <div id="statsAlert" class="alert alert-info" style="display:none;"></div>
+
+    <!-- Summary stats grid -->
+    <div class="stat-grid" id="statGrid" style="margin-bottom:18px;"></div>
+
+    <!-- Heterogeneity -->
+    <div class="two-col" style="margin-bottom:18px;">
+      <div class="card">
+        <div class="card-title">&#127379; Heterogeneity</div>
+        <div id="heteroText" style="font-size:.85rem; color:var(--text2);">—</div>
+      </div>
+      <div class="card">
+        <div class="card-title">&#128200; SROC / AUC</div>
+        <div id="aucText" style="font-size:.85rem; color:var(--text2);">—</div>
+      </div>
+    </div>
+
+    <!-- Per-study table -->
+    <div class="card">
+      <div class="card-title">&#128202; Per-Study Results</div>
+      <div class="table-scroll">
+        <table class="stats-table" id="statsTable">
+          <thead>
+            <tr>
+              <th>Study</th>
+              <th>TP</th><th>FP</th><th>FN</th><th>TN</th>
+              <th>Se (95% CI)</th>
+              <th>Sp (95% CI)</th>
+              <th>DOR (95% CI)</th>
+              <th>LR+</th><th>LR-</th>
+              <th>Weight</th>
+            </tr>
+          </thead>
+          <tbody id="statsTableBody">
+            <tr><td colspan="11" style="text-align:center; color:var(--text2); padding:16px;">No studies.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB 4: Export                                                  -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-export">
+  <div style="max-width:900px; margin:0 auto;">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">&#128228; Export Options</div>
+      <div class="export-grid">
+        <div class="export-card" onclick="exportPNG()" role="button" tabindex="0" onkeydown="if(event.key==='Enter')exportPNG()">
+          <div class="export-icon">&#128444;</div>
+          <div class="export-title">PNG Image</div>
+          <div class="export-desc">High-resolution SROC plot (560×520 px)</div>
+        </div>
+        <div class="export-card" onclick="exportCSV()" role="button" tabindex="0" onkeydown="if(event.key==='Enter')exportCSV()">
+          <div class="export-icon">&#128202;</div>
+          <div class="export-title">CSV Data</div>
+          <div class="export-desc">Study data + computed statistics</div>
+        </div>
+        <div class="export-card" onclick="exportHTMLReport()" role="button" tabindex="0" onkeydown="if(event.key==='Enter')exportHTMLReport()">
+          <div class="export-icon">&#128196;</div>
+          <div class="export-title">HTML Report</div>
+          <div class="export-desc">Standalone report with embedded plot</div>
+        </div>
+        <div class="export-card" onclick="window.print()" role="button" tabindex="0" onkeydown="if(event.key==='Enter')window.print()">
+          <div class="export-icon">&#128424;</div>
+          <div class="export-title">Print</div>
+          <div class="export-desc">Print-friendly layout</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="exportPreview" style="display:none;">
+      <div class="card-title">Preview</div>
+      <div id="exportPreviewContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT ENGINE                                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── State ── */
+let studies = [];      // array of study objects
+let computed = null;   // results from recompute()
+
+/* ── Utility: HTML escaping ── */
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* ── Dark mode ── */
+function toggleDark() {
+  document.body.classList.toggle('dark');
+  saveState();
+  drawSROC();
+}
+
+/* ── Tab switching ── */
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-selected', 'false');
+  });
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('tab-' + name).setAttribute('aria-selected', 'true');
+  if (name === 'plot') { setTimeout(drawSROC, 50); }
+  if (name === 'stats') { renderStats(); }
+}
+
+/* ── Math helpers ── */
+function logit(p) { return Math.log(p / (1 - p)); }
+function expit(x) { return 1 / (1 + Math.exp(-x)); }
+
+// Abramowitz & Stegun erf approximation — max error 1.5e-7
+function erf(x) {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x));
+  const poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+  const r = 1 - poly * Math.exp(-x * x);
+  return x < 0 ? -r : r;
+}
+
+function normalCDF(x) { return 0.5 * (1 + erf(x / Math.SQRT2)); }
+function normalPDF(x) { return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI); }
+
+// Wilson-Hilferty chi² quantile approximation
+function chi2Quantile(p, df) {
+  // normal quantile via rational approx
+  const nq = normalQuantile(p);
+  const h = 2 / (9 * df);
+  return df * Math.pow(1 - h + nq * Math.sqrt(h), 3);
+}
+
+// Normal quantile by rational approx (Beasley-Springer-Moro)
+function normalQuantile(p) {
+  if (p <= 0) return -Infinity;
+  if (p >= 1) return  Infinity;
+  const a = [0, -3.969683028665376e+01, 2.209460984245205e+02,
+    -2.759285104469687e+02, 1.383577518672690e+02,
+    -3.066479806614716e+01, 2.506628277459239e+00];
+  const b = [0, -5.447609879822406e+01, 1.615858368580409e+02,
+    -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+  const c = [-7.784894002430293e-03, -3.223964580411365e-01,
+    -2.400758277161838e+00, -2.549732539343734e+00,
+    4.374664141464968e+00, 2.938163982698783e+00];
+  const d = [7.784695709041462e-03, 3.224671290700398e-01,
+    2.445134137142996e+00, 3.754408661907416e+00];
+  const pL = 0.02425, pH = 1 - pL;
+  let q;
+  if (p < pL) {
+    const r = Math.sqrt(-2 * Math.log(p));
+    q = (((((c[0]*r+c[1])*r+c[2])*r+c[3])*r+c[4])*r+c[5]) /
+        ((((d[0]*r+d[1])*r+d[2])*r+d[3])*r+1);
+  } else if (p <= pH) {
+    const r = p - 0.5, r2 = r * r;
+    q = r * (((((a[1]*r2+a[2])*r2+a[3])*r2+a[4])*r2+a[5])*r2+a[6]) /
+           (((((b[1]*r2+b[2])*r2+b[3])*r2+b[4])*r2+b[5])*r2+1);
+  } else {
+    const r = Math.sqrt(-2 * Math.log(1 - p));
+    q = -(((((c[0]*r+c[1])*r+c[2])*r+c[3])*r+c[4])*r+c[5]) /
+          ((((d[0]*r+d[1])*r+d[2])*r+d[3])*r+1);
+  }
+  return q;
+}
+
+// Wilson score CI for a proportion
+function wilsonCI(k, n, z) {
+  if (n === 0) return [0, 1];
+  const p = k / n;
+  const denom = 1 + z * z / n;
+  const centre = (p + z * z / (2 * n)) / denom;
+  const half = (z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / denom;
+  return [Math.max(0, centre - half), Math.min(1, centre + half)];
+}
+
+// DL (DerSimonian-Laird) meta-analysis on logit scale
+// returns { mu, se_mu, tau2, I2, Q, weights }
+function dlMeta(values, variances) {
+  const k = values.length;
+  if (k === 0) return null;
+  if (k === 1) return { mu: values[0], se_mu: Math.sqrt(variances[0]), tau2: 0, I2: 0, Q: 0, weights: [1] };
+
+  const w = variances.map(v => 1 / v);
+  const sumW  = w.reduce((a, b) => a + b, 0);
+  const sumW2 = w.reduce((a, b) => a + b * b, 0);
+  const mu_fe = w.reduce((a, wi, i) => a + wi * values[i], 0) / sumW;
+  const Q     = w.reduce((a, wi, i) => a + wi * Math.pow(values[i] - mu_fe, 2), 0);
+  const C     = sumW - sumW2 / sumW;
+  const tau2  = Math.max(0, (Q - (k - 1)) / C);
+  const wRE   = variances.map(v => 1 / (v + tau2));
+  const sumWR = wRE.reduce((a, b) => a + b, 0);
+  const mu    = wRE.reduce((a, wi, i) => a + wi * values[i], 0) / sumWR;
+  const se_mu = Math.sqrt(1 / sumWR);
+  const I2    = Math.max(0, ((Q - (k - 1)) / Q) * 100);
+  return { mu, se_mu, tau2, I2, Q, weights: wRE, sumWR };
+}
+
+/* ── Continuity correction ── */
+function cc() { return document.getElementById('ccBox').checked ? 0.5 : 0; }
+
+/* ── Compute per-study stats ── */
+function computeStudy(s) {
+  const eps = cc();
+  let tp = s.tp, fp = s.fp, fn = s.fn, tn = s.tn;
+  // Apply continuity correction if any cell is 0
+  if (tp === 0 || fp === 0 || fn === 0 || tn === 0) {
+    tp += eps; fp += eps; fn += eps; tn += eps;
+  }
+  const n1 = tp + fn;   // disease positives
+  const n0 = fp + tn;   // disease negatives
+  const N  = n1 + n0;
+  const Se = tp / n1;
+  const Sp = tn / n0;
+  const DOR = (tp * tn) / (fp * fn);
+  const LRpos = Se / (1 - Sp);
+  const LRneg = (1 - Se) / Sp;
+  return { ...s, tp_c: tp, fp_c: fp, fn_c: fn, tn_c: tn, n1, n0, N, Se, Sp, DOR, LRpos, LRneg };
+}
+
+/* ── Moses-Littenberg SROC ── */
+function mosesSROC(cStudies) {
+  if (cStudies.length < 2) return null;
+  const valid = cStudies.filter(s => s.Se > 0 && s.Se < 1 && s.Sp > 0 && s.Sp < 1);
+  if (valid.length < 2) return null;
+
+  const D = valid.map(s => logit(s.Se) - logit(1 - s.Sp)); // logit(Se) + logit(Sp)
+  const S = valid.map(s => logit(s.Se) + logit(1 - s.Sp)); // logit(Se) - logit(Sp)
+
+  // Variance of D_i ≈ 1/(Se*n1) + 1/((1-Se)*n1) + 1/(Sp*n0) + 1/((1-Sp)*n0)
+  const varD = valid.map(s => {
+    return 1 / (s.Se * s.n1) + 1 / ((1 - s.Se) * s.n1) +
+           1 / (s.Sp * s.n0) + 1 / ((1 - s.Sp) * s.n0);
+  });
+
+  // Weighted linear regression D = a + b*S with weights w = 1/varD
+  const W = varD.map(v => 1 / v);
+  const sumW  = W.reduce((a, b) => a + b, 0);
+  const sumWS = W.reduce((a, wi, i) => a + wi * S[i], 0);
+  const sumWD = W.reduce((a, wi, i) => a + wi * D[i], 0);
+  const sumWS2 = W.reduce((a, wi, i) => a + wi * S[i] * S[i], 0);
+  const sumWSD = W.reduce((a, wi, i) => a + wi * S[i] * D[i], 0);
+
+  const denom = sumW * sumWS2 - sumWS * sumWS;
+  if (Math.abs(denom) < 1e-12) return null;
+
+  const b = (sumW * sumWSD - sumWS * sumWD) / denom;
+  const a = (sumWD - b * sumWS) / sumW;
+
+  const Lambda = a / Math.sqrt(1 + b * b);
+  // CRITICAL: AUC = normalCDF(Lambda/sqrt(2)) — use Phi(), NOT logistic
+  const AUC = normalCDF(Lambda / Math.sqrt(2));
+
+  return { a, b, Lambda, AUC, n: valid.length };
+}
+
+/* ── DL pooling of Se, Sp (logit scale) ── */
+function poolSeSpDL(cStudies) {
+  const valid = cStudies.filter(s => s.Se > 0 && s.Se < 1 && s.Sp > 0 && s.Sp < 1);
+  if (valid.length < 2) return null;
+
+  const logitSe = valid.map(s => logit(s.Se));
+  const logitSp = valid.map(s => logit(s.Sp));
+
+  // Within-study variance of logit(Se) = 1/(Se*(1-Se)*n1), similarly for Sp
+  const varSe = valid.map(s => 1 / (s.Se * (1 - s.Se) * s.n1));
+  const varSp = valid.map(s => 1 / (s.Sp * (1 - s.Sp) * s.n0));
+
+  const dlSe = dlMeta(logitSe, varSe);
+  const dlSp = dlMeta(logitSp, varSp);
+
+  // Pooled point estimates
+  const pooledSe = expit(dlSe.mu);
+  const pooledSp = expit(dlSp.mu);
+
+  // 95% CI on logit scale, back-transform
+  const z95 = 1.959964;
+  const seCIlo = expit(dlSe.mu - z95 * dlSe.se_mu);
+  const seCIhi = expit(dlSe.mu + z95 * dlSe.se_mu);
+  const spCIlo = expit(dlSp.mu - z95 * dlSp.se_mu);
+  const spCIhi = expit(dlSp.mu + z95 * dlSp.se_mu);
+
+  // Correlation of logit(Se), logit(Sp) across studies
+  const meanLSe = logitSe.reduce((a, b) => a + b, 0) / valid.length;
+  const meanLSp = logitSp.reduce((a, b) => a + b, 0) / valid.length;
+  let covSum = 0, varSeSum = 0, varSpSum = 0;
+  for (let i = 0; i < valid.length; i++) {
+    covSum  += (logitSe[i] - meanLSe) * (logitSp[i] - meanLSp);
+    varSeSum += Math.pow(logitSe[i] - meanLSe, 2);
+    varSpSum += Math.pow(logitSp[i] - meanLSp, 2);
+  }
+  const rho = (varSeSum > 0 && varSpSum > 0) ? covSum / Math.sqrt(varSeSum * varSpSum) : 0;
+
+  return {
+    pooledSe, pooledSp, seCIlo, seCIhi, spCIlo, spCIhi,
+    dlSe, dlSp, rho,
+    logitSe_pool: dlSe.mu, logitSp_pool: dlSp.mu,
+    se_logitSe: dlSe.se_mu, se_logitSp: dlSp.mu,
+    tau2_Se: dlSe.tau2, tau2_Sp: dlSp.tau2,
+    I2_Se: dlSe.I2, I2_Sp: dlSp.I2,
+    Q_Se: dlSe.Q, Q_Sp: dlSp.Q,
+    k: valid.length
+  };
+}
+
+/* ── Pool DOR, LR+ LR- on log scale ── */
+function poolDOR(cStudies) {
+  const valid = cStudies.filter(s => s.DOR > 0 && isFinite(s.DOR));
+  if (valid.length < 1) return null;
+
+  const logDOR = valid.map(s => Math.log(s.DOR));
+  // Variance of log DOR: 1/TP + 1/FP + 1/FN + 1/TN (using corrected cells)
+  const varLogDOR = valid.map(s => 1/s.tp_c + 1/s.fp_c + 1/s.fn_c + 1/s.tn_c);
+
+  const dl = dlMeta(logDOR, varLogDOR);
+  const z95 = 1.959964;
+  return {
+    pooledDOR: Math.exp(dl.mu),
+    DORlo: Math.exp(dl.mu - z95 * dl.se_mu),
+    DORhi: Math.exp(dl.mu + z95 * dl.se_mu),
+    tau2_DOR: dl.tau2, I2_DOR: dl.I2
+  };
+}
+
+function poolLR(cStudies, field) {
+  const valid = cStudies.filter(s => s[field] > 0 && isFinite(s[field]));
+  if (valid.length < 1) return null;
+  const logLR = valid.map(s => Math.log(s[field]));
+  const varLogLR = field === 'LRpos'
+    ? valid.map(s => (1 - s.Se) / (s.Se * s.n1) + s.Sp / ((1 - s.Sp) * s.n0))
+    : valid.map(s => s.Se / ((1 - s.Se) * s.n1) + (1 - s.Sp) / (s.Sp * s.n0));
+  const dl = dlMeta(logLR, varLogLR);
+  const z95 = 1.959964;
+  return {
+    pooled: Math.exp(dl.mu),
+    lo: Math.exp(dl.mu - z95 * dl.se_mu),
+    hi: Math.exp(dl.mu + z95 * dl.se_mu)
+  };
+}
+
+/* ── Main recompute ── */
+function recompute() {
+  if (studies.length === 0) {
+    computed = null;
+    renderStudyTable();
+    drawSROC();
+    renderStats();
+    return;
+  }
+  const cs = studies.map(computeStudy);
+  const sroc   = mosesSROC(cs);
+  const pool   = poolSeSpDL(cs);
+  const dor    = poolDOR(cs);
+  const lrp    = poolLR(cs, 'LRpos');
+  const lrn    = poolLR(cs, 'LRneg');
+  computed = { cs, sroc, pool, dor, lrp, lrn };
+  renderStudyTable();
+  renderStats();
+  drawSROC();
+}
+
+/* ── Ellipse helpers ── */
+// Generate ellipse points in logit(Se), logit(Sp) space, then expit
+// varSe, varSp: variance of pooled estimates; rho: correlation; scale: sqrt(chi2)
+function buildEllipse(logitSe0, logitSp0, varSe, varSp, rho, scale) {
+  // 2x2 covariance matrix: [[varSe, rho*sqrt(varSe*varSp)], [..., varSp]]
+  const covSeS = rho * Math.sqrt(varSe * varSp);
+  // Eigenvalues of [[a,c],[c,b]] (symmetric 2x2)
+  const a = varSe, b = varSp, c = covSeS;
+  const tr = a + b;
+  const det = a * b - c * c;
+  const disc = Math.sqrt(Math.max(0, (tr / 2) * (tr / 2) - det));
+  const lam1 = tr / 2 + disc;
+  const lam2 = tr / 2 - disc;
+
+  // Eigenvectors
+  let angle;
+  if (Math.abs(c) < 1e-12) {
+    angle = (a >= b) ? 0 : Math.PI / 2;
+  } else {
+    angle = Math.atan2(lam1 - a, c);
+  }
+
+  const semiA = scale * Math.sqrt(Math.max(0, lam1));
+  const semiB = scale * Math.sqrt(Math.max(0, lam2));
+
+  // Sample ellipse in rotated frame, transform to logit space, expit to prob space
+  const pts = [];
+  const nPts = 200;
+  for (let i = 0; i <= nPts; i++) {
+    const theta = (i / nPts) * 2 * Math.PI;
+    const u = semiA * Math.cos(theta);
+    const v = semiB * Math.sin(theta);
+    // Rotate by angle
+    const dx = u * Math.cos(angle) - v * Math.sin(angle);
+    const dy = u * Math.sin(angle) + v * Math.cos(angle);
+    // dx is in logit(Se) direction, dy in logit(Sp) direction
+    const lSe = logitSe0 + dx;
+    const lSp = logitSp0 + dy;
+    // Back-transform
+    const Se = expit(lSe);
+    const Sp = expit(lSp);
+    if (Se >= 0 && Se <= 1 && Sp >= 0 && Sp <= 1) {
+      pts.push({ x: 1 - Sp, y: Se }); // ROC space: x=1-Sp, y=Se
+    }
+  }
+  return pts;
+}
+
+/* ── SROC curve points ── */
+function srocCurvePoints(sroc) {
+  if (!sroc) return [];
+  const { a, b } = sroc;
+  const pts = [];
+  // Parameterise by S (logit(Se)+logit(1-Sp)) from -5 to 5
+  for (let i = 0; i <= 200; i++) {
+    const S = -6 + (i / 200) * 12;
+    const D = a + b * S;
+    // D = logit(Se) - logit(1-Sp) = logit(Se) + logit(Sp)
+    // S = logit(Se) + logit(1-Sp) = logit(Se) - logit(Sp)
+    // Adding: 2*logit(Se) = D+S → logit(Se) = (D+S)/2
+    // Subtracting: 2*logit(Sp) = D-S → logit(Sp) = (D-S)/2
+    const logitSe = (D + S) / 2;
+    const logitSp = (D - S) / 2;
+    const Se = expit(logitSe);
+    const Sp = expit(logitSp);
+    if (Se >= 0.01 && Se <= 0.99 && Sp >= 0.01 && Sp <= 0.99) {
+      pts.push({ x: 1 - Sp, y: Se });
+    }
+  }
+  // Sort by x ascending
+  pts.sort((a, b) => a.x - b.x);
+  return pts;
+}
+
+/* ── Canvas drawing ── */
+const MARGIN = { top: 40, right: 20, bottom: 55, left: 60 };
+
+function canvasXY(canvas) {
+  const W = canvas.width, H = canvas.height;
+  const plotW = W - MARGIN.left - MARGIN.right;
+  const plotH = H - MARGIN.top - MARGIN.bottom;
+  function toX(val) { return MARGIN.left + val * plotW; }  // val in [0,1]
+  function toY(val) { return MARGIN.top + (1 - val) * plotH; } // val in [0,1]
+  return { W, H, plotW, plotH, toX, toY };
+}
+
+function drawSROC() {
+  const canvas = document.getElementById('srocCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const { W, H, plotW, plotH, toX, toY } = canvasXY(canvas);
+
+  const isDark = document.body.classList.contains('dark');
+  const bgColor   = isDark ? '#1a1d27' : '#ffffff';
+  const gridColor = isDark ? '#2d3248' : '#e9ecef';
+  const axisColor = isDark ? '#8892b0' : '#6c757d';
+  const textColor = isDark ? '#e2e8f0' : '#212529';
+
+  // Clear
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Grid ──
+  if (document.getElementById('chk-grid').checked) {
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 0.8;
+    for (let v = 0; v <= 10; v++) {
+      const frac = v / 10;
+      ctx.beginPath(); ctx.moveTo(toX(frac), toY(0)); ctx.lineTo(toX(frac), toY(1)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(toX(0), toY(frac)); ctx.lineTo(toX(1), toY(frac)); ctx.stroke();
+    }
+  }
+
+  // ── Chance line ──
+  if (document.getElementById('chk-chance').checked) {
+    ctx.strokeStyle = axisColor;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath(); ctx.moveTo(toX(0), toY(0)); ctx.lineTo(toX(1), toY(1)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── Axes ──
+  ctx.strokeStyle = axisColor;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toY(0)); ctx.lineTo(toX(1), toY(0)); // x-axis
+  ctx.moveTo(toX(0), toY(0)); ctx.lineTo(toX(0), toY(1)); // y-axis
+  ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = textColor;
+  ctx.font = '13px system-ui';
+  ctx.textAlign = 'center';
+  // X-axis ticks
+  for (let v = 0; v <= 10; v++) {
+    const frac = v / 10;
+    ctx.fillText((frac).toFixed(1), toX(frac), toY(0) + 18);
+    ctx.beginPath(); ctx.moveTo(toX(frac), toY(0)); ctx.lineTo(toX(frac), toY(0) + 5); ctx.stroke();
+  }
+  ctx.font = 'bold 13px system-ui';
+  ctx.fillText('1 – Specificity (FPR)', toX(0.5), H - 8);
+
+  // Y-axis ticks
+  ctx.textAlign = 'right';
+  ctx.font = '13px system-ui';
+  for (let v = 0; v <= 10; v++) {
+    const frac = v / 10;
+    ctx.fillText((frac).toFixed(1), toX(0) - 8, toY(frac) + 4);
+    ctx.beginPath(); ctx.moveTo(toX(0), toY(frac)); ctx.lineTo(toX(0) - 5, toY(frac)); ctx.stroke();
+  }
+  ctx.save();
+  ctx.translate(14, toY(0.5));
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 13px system-ui';
+  ctx.fillText('Sensitivity (TPR)', 0, 0);
+  ctx.restore();
+
+  // Title
+  ctx.fillStyle = textColor;
+  ctx.font = 'bold 14px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('Summary ROC (SROC) Curve', W / 2, 22);
+
+  if (!computed || !computed.cs || computed.cs.length === 0) {
+    ctx.fillStyle = axisColor;
+    ctx.font = '13px system-ui';
+    ctx.fillText('Add studies to generate SROC curve', W / 2, toY(0.5));
+    return;
+  }
+
+  const { cs, sroc, pool } = computed;
+  const bubbleColor = document.getElementById('col-bubble').value;
+  const curveColor  = document.getElementById('col-curve').value;
+  const sumColor    = document.getElementById('col-summary').value;
+  const ciColor     = document.getElementById('col-ci').value;
+  const piColor     = document.getElementById('col-pi').value;
+  const bScale = parseFloat(document.getElementById('bubbleScale').value);
+  document.getElementById('bubbleScaleVal').textContent = bScale.toFixed(1) + '×';
+
+  // ── PI Ellipse (outer, wider) ── drawn first
+  if (document.getElementById('chk-pi').checked && pool && pool.k >= 2) {
+    const scale95 = Math.sqrt(chi2Quantile(0.95, 2));  // ≈ 2.448
+    // PI: add tau2 to within-study variances
+    const varSe_pi = pool.se_logitSe * pool.se_logitSe + pool.tau2_Se;
+    const varSp_pi = pool.dlSp.se_mu * pool.dlSp.se_mu + pool.tau2_Sp;
+    const piPts = buildEllipse(
+      pool.logitSe_pool, pool.logitSp_pool,
+      varSe_pi, varSp_pi, pool.rho, scale95
+    );
+    if (piPts.length > 2) {
+      ctx.strokeStyle = piColor;
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      piPts.forEach((p, i) => {
+        const x = toX(p.x), y = toY(p.y);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.closePath(); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // ── CI Ellipse (inner) ──
+  if (document.getElementById('chk-ci').checked && pool && pool.k >= 2) {
+    const scale95 = Math.sqrt(chi2Quantile(0.95, 2));  // sqrt(5.991) ≈ 2.448
+    const varSe = pool.se_logitSe * pool.se_logitSe;
+    const varSp = pool.dlSp.se_mu * pool.dlSp.se_mu;
+    const ciPts = buildEllipse(
+      pool.logitSe_pool, pool.logitSp_pool,
+      varSe, varSp, pool.rho, scale95
+    );
+    if (ciPts.length > 2) {
+      ctx.strokeStyle = ciColor;
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath();
+      ciPts.forEach((p, i) => {
+        const x = toX(p.x), y = toY(p.y);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.closePath(); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // ── SROC Curve ──
+  if (document.getElementById('chk-curve').checked && sroc) {
+    const curvePts = srocCurvePoints(sroc);
+    if (curvePts.length > 1) {
+      ctx.strokeStyle = curveColor;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      curvePts.forEach((p, i) => {
+        const x = toX(p.x), y = toY(p.y);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+  }
+
+  // ── Study bubbles ──
+  const maxN = Math.max(...cs.map(s => s.N));
+  const BASE_R = 8;
+
+  if (document.getElementById('chk-points').checked) {
+    cs.forEach((s, idx) => {
+      const x = toX(1 - s.Sp);
+      const y = toY(s.Se);
+      const r = Math.max(4, BASE_R * bScale * Math.sqrt(s.N / maxN) * 2.5);
+
+      // Bubble fill with alpha
+      const hex = bubbleColor;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = hex + '55';  // semi-transparent
+      ctx.fill();
+      ctx.strokeStyle = hex;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Label
+      if (document.getElementById('chk-labels').checked) {
+        ctx.fillStyle = textColor;
+        ctx.font = '10px system-ui';
+        ctx.textAlign = 'left';
+        ctx.fillText(escHtml(s.name).substring(0, 16), x + r + 2, y + 4);
+      }
+    });
+  }
+
+  // ── Summary point ──
+  if (document.getElementById('chk-summary').checked && pool) {
+    const sx = toX(1 - pool.pooledSp);
+    const sy = toY(pool.pooledSe);
+    ctx.beginPath(); ctx.arc(sx, sy, 9, 0, 2 * Math.PI);
+    ctx.fillStyle = sumColor;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Cross-hairs
+    ctx.strokeStyle = sumColor;
+    ctx.lineWidth = 1.5;
+    const errX = toX(1 - pool.spCIlo) - toX(1 - pool.spCIhi);
+    const errY = toY(pool.seCIlo) - toY(pool.seCIhi);
+    ctx.beginPath();
+    ctx.moveTo(sx - errX/2, sy); ctx.lineTo(sx + errX/2, sy);
+    ctx.moveTo(sx, sy - errY/2); ctx.lineTo(sx, sy + errY/2);
+    ctx.stroke();
+  }
+
+  // Update param text
+  updateSROCParamText(sroc, pool);
+}
+
+function updateSROCParamText(sroc, pool) {
+  const box = document.getElementById('srocParamText');
+  if (!box) return;
+  if (!sroc && !pool) { box.innerHTML = 'Add at least 2 studies to compute SROC.'; return; }
+  let html = '';
+  if (sroc) {
+    html += `<b>Moses-Littenberg SROC</b> (k = ${sroc.n})<br>`;
+    html += `&nbsp;&nbsp;<b>a</b> = ${sroc.a.toFixed(3)}, <b>b</b> = ${sroc.b.toFixed(3)}<br>`;
+    html += `&nbsp;&nbsp;&Lambda; = ${sroc.Lambda.toFixed(3)}<br>`;
+    html += `&nbsp;&nbsp;AUC = <b>${sroc.AUC.toFixed(4)}</b> [&Phi;(&Lambda;/&radic;2)]<br>`;
+  }
+  if (pool) {
+    html += `<br><b>Bivariate pooling</b> (DL, logit scale)<br>`;
+    html += `&nbsp;&nbsp;Se = ${(pool.pooledSe*100).toFixed(1)}% [${(pool.seCIlo*100).toFixed(1)}–${(pool.seCIhi*100).toFixed(1)}%]<br>`;
+    html += `&nbsp;&nbsp;Sp = ${(pool.pooledSp*100).toFixed(1)}% [${(pool.spCIlo*100).toFixed(1)}–${(pool.spCIhi*100).toFixed(1)}%]<br>`;
+    html += `&nbsp;&nbsp;&tau;&sup2;(Se) = ${pool.tau2_Se.toFixed(4)}, &tau;&sup2;(Sp) = ${pool.tau2_Sp.toFixed(4)}<br>`;
+    html += `&nbsp;&nbsp;95% CI ellipse: &radic;&chi;&sup2;(0.05,2) = 2.448<br>`;
+  }
+  box.innerHTML = html;
+}
+
+/* ── Render study table (Tab 1) ── */
+function renderStudyTable() {
+  const tbody = document.getElementById('studyTbody');
+  document.getElementById('studyCount').textContent = studies.length;
+
+  if (studies.length === 0) {
+    tbody.innerHTML = '<tr id="emptyRow"><td colspan="13" style="text-align:center;color:var(--text2);padding:20px;">No studies yet. Add studies above or load an example.</td></tr>';
+    return;
+  }
+
+  const cs = computed ? computed.cs : studies.map(computeStudy);
+  let html = '';
+  cs.forEach((s, idx) => {
+    html += `<tr>
+      <td>${idx + 1}</td>
+      <td>${escHtml(s.name)}</td>
+      <td>${s.tp}</td><td>${s.fp}</td><td>${s.fn}</td><td>${s.tn}</td>
+      <td>${s.N.toFixed(0)}</td>
+      <td>${(s.Se * 100).toFixed(1)}</td>
+      <td>${(s.Sp * 100).toFixed(1)}</td>
+      <td>${isFinite(s.DOR) ? s.DOR.toFixed(2) : '∞'}</td>
+      <td>${isFinite(s.LRpos) ? s.LRpos.toFixed(2) : '∞'}</td>
+      <td>${isFinite(s.LRneg) ? s.LRneg.toFixed(3) : '—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeStudy(${idx})">&#128465;</button></td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+/* ── Render Stats (Tab 3) ── */
+function renderStats() {
+  const grid = document.getElementById('statGrid');
+  const alert = document.getElementById('statsAlert');
+  const hetero = document.getElementById('heteroText');
+  const aucDiv = document.getElementById('aucText');
+  const statsBody = document.getElementById('statsTableBody');
+
+  if (!computed || !computed.pool) {
+    grid.innerHTML = '';
+    alert.style.display = 'block';
+    alert.textContent = studies.length === 0
+      ? 'No studies loaded. Add studies in the Study Data tab.'
+      : 'Need at least 2 valid studies (no all-zero cells after correction) to compute pooled statistics.';
+    hetero.textContent = '—';
+    aucDiv.textContent = '—';
+    statsBody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text2);padding:16px;">No studies.</td></tr>';
+    return;
+  }
+
+  alert.style.display = 'none';
+  const { cs, pool, dor, lrp, lrn, sroc } = computed;
+
+  // ── Summary stat cards ──
+  const fmtPct = (v, d=1) => (v * 100).toFixed(d) + '%';
+  const fmtNum = (v, d=2) => isFinite(v) ? v.toFixed(d) : '∞';
+
+  const cards = [
+    { label: 'Pooled Sensitivity', value: fmtPct(pool.pooledSe), ci: `${fmtPct(pool.seCIlo)} – ${fmtPct(pool.seCIhi)}` },
+    { label: 'Pooled Specificity', value: fmtPct(pool.pooledSp), ci: `${fmtPct(pool.spCIlo)} – ${fmtPct(pool.spCIhi)}` },
+    { label: 'AUC (SROC)',         value: sroc ? sroc.AUC.toFixed(4) : '—', ci: sroc ? `Λ = ${sroc.Lambda.toFixed(3)}` : '' },
+    { label: 'Pooled DOR',         value: dor ? fmtNum(dor.pooledDOR, 1) : '—', ci: dor ? `${fmtNum(dor.DORlo, 1)} – ${fmtNum(dor.DORhi, 1)}` : '' },
+    { label: 'Pooled LR+',         value: lrp ? fmtNum(lrp.pooled, 2) : '—', ci: lrp ? `${fmtNum(lrp.lo, 2)} – ${fmtNum(lrp.hi, 2)}` : '' },
+    { label: 'Pooled LR−',         value: lrn ? fmtNum(lrn.pooled, 3) : '—', ci: lrn ? `${fmtNum(lrn.lo, 3)} – ${fmtNum(lrn.hi, 3)}` : '' },
+  ];
+
+  grid.innerHTML = cards.map(c => `
+    <div class="stat-card">
+      <div class="stat-value">${c.value}</div>
+      <div class="stat-ci">(95% CI: ${c.ci})</div>
+      <div class="stat-label">${c.label}</div>
+    </div>
+  `).join('');
+
+  // ── Heterogeneity ──
+  const i2Badge = (i2) => {
+    if (i2 < 25) return `<span class="badge badge-success">Low</span>`;
+    if (i2 < 75) return `<span class="badge badge-warning">Moderate</span>`;
+    return `<span class="badge badge-danger">High</span>`;
+  };
+
+  hetero.innerHTML = `
+    <table style="width:100%; font-size:.85rem;">
+      <tr><th style="text-align:left; padding:4px 6px; background:var(--surface2);">Parameter</th>
+          <th style="padding:4px 6px; background:var(--surface2);">I²</th>
+          <th style="padding:4px 6px; background:var(--surface2);">τ²</th>
+          <th style="padding:4px 6px; background:var(--surface2);">Q (df = ${pool.k - 1})</th>
+          <th style="padding:4px 6px; background:var(--surface2);">Interpretation</th>
+      </tr>
+      <tr><td style="padding:4px 6px;">Sensitivity</td>
+          <td style="padding:4px 6px; text-align:center;">${pool.I2_Se.toFixed(1)}%</td>
+          <td style="padding:4px 6px; text-align:center;">${pool.tau2_Se.toFixed(4)}</td>
+          <td style="padding:4px 6px; text-align:center;">${pool.Q_Se.toFixed(2)}</td>
+          <td style="padding:4px 6px; text-align:center;">${i2Badge(pool.I2_Se)}</td>
+      </tr>
+      <tr><td style="padding:4px 6px;">Specificity</td>
+          <td style="padding:4px 6px; text-align:center;">${pool.I2_Sp.toFixed(1)}%</td>
+          <td style="padding:4px 6px; text-align:center;">${pool.tau2_Sp.toFixed(4)}</td>
+          <td style="padding:4px 6px; text-align:center;">${pool.Q_Sp.toFixed(2)}</td>
+          <td style="padding:4px 6px; text-align:center;">${i2Badge(pool.I2_Sp)}</td>
+      </tr>
+    </table>`;
+
+  // ── AUC & SROC ──
+  if (sroc) {
+    let aucInterp = '';
+    if (sroc.AUC >= 0.9) aucInterp = '<span class="badge badge-success">Excellent (≥0.9)</span>';
+    else if (sroc.AUC >= 0.8) aucInterp = '<span class="badge badge-success">Good (0.8–0.9)</span>';
+    else if (sroc.AUC >= 0.7) aucInterp = '<span class="badge badge-warning">Fair (0.7–0.8)</span>';
+    else aucInterp = '<span class="badge badge-danger">Poor (<0.7)</span>';
+
+    aucDiv.innerHTML = `
+      <b>AUC = ${sroc.AUC.toFixed(4)}</b> ${aucInterp}<br>
+      <span style="font-size:.8rem; color:var(--text2);">Formula: &Phi;(&Lambda; / &radic;2) where &Lambda; = a / &radic;(1+b&sup2;)<br>
+      a = ${sroc.a.toFixed(4)}, b = ${sroc.b.toFixed(4)}, &Lambda; = ${sroc.Lambda.toFixed(4)}<br>
+      Studies in SROC fit: ${sroc.n}</span>`;
+  } else {
+    aucDiv.textContent = 'Need ≥2 valid studies for SROC.';
+  }
+
+  // ── Per-study table ──
+  const totalWtSe = pool.dlSe.weights.reduce((a, b) => a + b, 0);
+  const validSe = cs.filter(s => s.Se > 0 && s.Se < 1 && s.Sp > 0 && s.Sp < 1);
+
+  let perStudyHTML = '';
+  const z95 = 1.959964;
+  cs.forEach((s, idx) => {
+    const seCIw = wilsonCI(s.tp, Math.round(s.n1), z95);
+    const spCIw = wilsonCI(s.tn, Math.round(s.n0), z95);
+    const logDOR = Math.log(s.DOR);
+    const seLogDOR = Math.sqrt(1/s.tp_c + 1/s.fp_c + 1/s.fn_c + 1/s.tn_c);
+    const DORlo = Math.exp(logDOR - z95 * seLogDOR);
+    const DORhi = Math.exp(logDOR + z95 * seLogDOR);
+
+    // Weight from DL meta-analysis
+    const vidx = validSe.findIndex(v => v.name === s.name && v.tp === s.tp);
+    const wt = (vidx >= 0 && pool.dlSe.weights[vidx] != null)
+      ? (pool.dlSe.weights[vidx] / totalWtSe * 100).toFixed(1) + '%'
+      : '—';
+
+    perStudyHTML += `<tr>
+      <td style="text-align:left;">${escHtml(s.name)}</td>
+      <td>${s.tp}</td><td>${s.fp}</td><td>${s.fn}</td><td>${s.tn}</td>
+      <td>${(s.Se*100).toFixed(1)}% [${(seCIw[0]*100).toFixed(1)}–${(seCIw[1]*100).toFixed(1)}]</td>
+      <td>${(s.Sp*100).toFixed(1)}% [${(spCIw[0]*100).toFixed(1)}–${(spCIw[1]*100).toFixed(1)}]</td>
+      <td>${s.DOR.toFixed(1)} [${DORlo.toFixed(1)}–${DORhi.toFixed(1)}]</td>
+      <td>${s.LRpos.toFixed(2)}</td>
+      <td>${s.LRneg.toFixed(3)}</td>
+      <td>${wt}</td>
+    </tr>`;
+  });
+  statsBody.innerHTML = perStudyHTML;
+}
+
+/* ── Add / Remove / Clear studies ── */
+function addStudy() {
+  const name = document.getElementById('inp-name').value.trim() || ('Study ' + (studies.length + 1));
+  const tp = parseInt(document.getElementById('inp-tp').value) || 0;
+  const fp = parseInt(document.getElementById('inp-fp').value) || 0;
+  const fn = parseInt(document.getElementById('inp-fn').value) || 0;
+  const tn = parseInt(document.getElementById('inp-tn').value) || 0;
+  if (tp < 0 || fp < 0 || fn < 0 || tn < 0) { alert('Values must be non-negative.'); return; }
+  studies.push({ name, tp, fp, fn, tn });
+  recompute();
+  saveState();
+  clearInputs();
+}
+
+function removeStudy(idx) {
+  studies.splice(idx, 1);
+  recompute();
+  saveState();
+}
+
+function clearInputs() {
+  ['inp-name', 'inp-tp', 'inp-fp', 'inp-fn', 'inp-tn'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('calcPreview').innerHTML = '';
+}
+
+function clearAllStudies() {
+  if (studies.length === 0 || confirm('Clear all studies?')) {
+    studies = [];
+    recompute();
+    saveState();
+  }
+}
+
+/* ── Live preview ── */
+function updateCalcPreview() {
+  const tp = parseFloat(document.getElementById('inp-tp').value) || 0;
+  const fp = parseFloat(document.getElementById('inp-fp').value) || 0;
+  const fn = parseFloat(document.getElementById('inp-fn').value) || 0;
+  const tn = parseFloat(document.getElementById('inp-tn').value) || 0;
+  if (tp + fp + fn + tn === 0) { document.getElementById('calcPreview').innerHTML = ''; return; }
+  const eps = cc();
+  let tp2 = tp, fp2 = fp, fn2 = fn, tn2 = tn;
+  if (tp===0||fp===0||fn===0||tn===0) { tp2+=eps; fp2+=eps; fn2+=eps; tn2+=eps; }
+  const n1 = tp2 + fn2, n0 = fp2 + tn2;
+  const Se = tp2 / n1, Sp = tn2 / n0;
+  const DOR = (tp2 * tn2) / (fp2 * fn2);
+  const LRp = Se / (1 - Sp), LRn = (1 - Se) / Sp;
+  document.getElementById('calcPreview').innerHTML =
+    `<b>Preview:</b> Se=${(Se*100).toFixed(1)}%, Sp=${(Sp*100).toFixed(1)}%, DOR=${DOR.toFixed(1)}, LR+=${LRp.toFixed(2)}, LR−=${LRn.toFixed(3)}`;
+}
+
+['inp-tp','inp-fp','inp-fn','inp-tn'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateCalcPreview);
+});
+
+/* ── Import CSV ── */
+function importCSV() {
+  const text = document.getElementById('csvPaste').value.trim();
+  if (!text) return;
+  const lines = text.split('\n').filter(l => l.trim());
+  let added = 0, errors = 0;
+  lines.forEach(line => {
+    const parts = line.split(',').map(p => p.trim());
+    if (parts.length < 5) { errors++; return; }
+    const name = parts[0] || ('Study ' + (studies.length + 1));
+    const tp = parseInt(parts[1]);
+    const fp = parseInt(parts[2]);
+    const fn = parseInt(parts[3]);
+    const tn = parseInt(parts[4]);
+    if ([tp, fp, fn, tn].some(isNaN)) { errors++; return; }
+    studies.push({ name, tp: Math.max(0,tp), fp: Math.max(0,fp), fn: Math.max(0,fn), tn: Math.max(0,tn) });
+    added++;
+  });
+  document.getElementById('csvPaste').value = '';
+  recompute();
+  saveState();
+  if (errors > 0) alert(`Added ${added} studies. ${errors} lines skipped (format: Name,TP,FP,FN,TN).`);
+}
+
+/* ── Example datasets ── */
+const EXAMPLES = {
+  1: {
+    name: 'Troponin for MI (12 studies — high accuracy)',
+    data: [
+      { name:'Wang 2012', tp:95, fp:8, fn:5, tn:142 },
+      { name:'Reichlin 2009', tp:122, fp:14, fn:8, tn:256 },
+      { name:'Mueller 2010', tp:87, fp:10, fn:7, tn:198 },
+      { name:'Keller 2011', tp:76, fp:6, fn:4, tn:134 },
+      { name:'Aldous 2012', tp:108, fp:12, fn:9, tn:221 },
+      { name:'Shortt 2013', tp:64, fp:9, fn:5, tn:117 },
+      { name:'Rubini 2014', tp:91, fp:7, fn:6, tn:183 },
+      { name:'Body 2015', tp:143, fp:18, fn:11, tn:302 },
+      { name:'Zhelev 2016', tp:55, fp:5, fn:4, tn:98 },
+      { name:'Carlton 2016', tp:78, fp:11, fn:6, tn:165 },
+      { name:'Shah 2017', tp:110, fp:13, fn:8, tn:234 },
+      { name:'Tan 2019', tp:89, fp:10, fn:7, tn:178 },
+    ]
+  },
+  2: {
+    name: 'CRP for Infection (18 studies — moderate accuracy, high heterogeneity)',
+    data: [
+      { name:'Simon 2004', tp:42, fp:38, fn:18, tn:102 },
+      { name:'Clyne 2005', tp:55, fp:45, fn:22, tn:118 },
+      { name:'Povoa 2006', tp:31, fp:29, fn:14, tn:76 },
+      { name:'Nobre 2008', tp:48, fp:40, fn:19, tn:109 },
+      { name:'Gibot 2009', tp:60, fp:52, fn:25, tn:138 },
+      { name:'Kofoed 2010', tp:27, fp:24, fn:12, tn:65 },
+      { name:'Luzzani 2011', tp:38, fp:33, fn:16, tn:89 },
+      { name:'Mearns 2012', tp:53, fp:47, fn:21, tn:126 },
+      { name:'Jones 2013', tp:22, fp:20, fn:10, tn:54 },
+      { name:'Tang 2014', tp:67, fp:58, fn:28, tn:152 },
+      { name:'Rios 2015', tp:35, fp:31, fn:15, tn:82 },
+      { name:'Bele 2016', tp:44, fp:39, fn:18, tn:104 },
+      { name:'Essardy 2017', tp:29, fp:26, fn:13, tn:69 },
+      { name:'Stefan 2018', tp:71, fp:62, fn:30, tn:162 },
+      { name:'Patel 2019', tp:39, fp:35, fn:17, tn:93 },
+      { name:'Gupta 2020', tp:51, fp:45, fn:22, tn:121 },
+      { name:'Li 2021', tp:44, fp:40, fn:19, tn:106 },
+      { name:'Ahmad 2022', tp:58, fp:51, fn:24, tn:138 },
+    ]
+  },
+  3: {
+    name: 'D-dimer for PE (10 studies — high Se, low Sp rule-out)',
+    data: [
+      { name:'Wells 2000', tp:145, fp:312, fn:5, tn:98 },
+      { name:'Ginsberg 2001', tp:112, fp:248, fn:4, tn:76 },
+      { name:'Perrier 2004', tp:168, fp:387, fn:6, tn:122 },
+      { name:'Righini 2006', tp:98, fp:225, fn:3, tn:72 },
+      { name:'Stein 2007', tp:201, fp:458, fn:7, tn:148 },
+      { name:'Gibson 2008', tp:87, fp:199, fn:3, tn:63 },
+      { name:'Carrier 2009', tp:134, fp:308, fn:5, tn:99 },
+      { name:'Douma 2010', tp:156, fp:357, fn:6, tn:114 },
+      { name:'van Belle 2011', tp:120, fp:274, fn:4, tn:87 },
+      { name:'Huisman 2013', tp:178, fp:407, fn:7, tn:131 },
+    ]
+  }
+};
+
+function loadExample(num) {
+  const ex = EXAMPLES[num];
+  if (!ex) return;
+  if (studies.length > 0 && !confirm(`Replace current ${studies.length} studies with "${ex.name}"?`)) return;
+  studies = ex.data.map(d => ({ ...d }));
+  recompute();
+  saveState();
+}
+
+/* ── Canvas hover tooltip ── */
+document.getElementById('srocCanvas').addEventListener('mousemove', function(e) {
+  const tooltip = document.getElementById('canvasTooltip');
+  if (!computed || !computed.cs || computed.cs.length === 0) { tooltip.style.display = 'none'; return; }
+
+  const rect = this.getBoundingClientRect();
+  const scaleX = this.width / rect.width;
+  const scaleY = this.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+
+  const { toX, toY } = canvasXY(this);
+  const maxN = Math.max(...computed.cs.map(s => s.N));
+  const bScale = parseFloat(document.getElementById('bubbleScale').value);
+
+  let found = null, foundR = Infinity;
+  computed.cs.forEach(s => {
+    const cx = toX(1 - s.Sp);
+    const cy = toY(s.Se);
+    const r = Math.max(4, 8 * bScale * Math.sqrt(s.N / maxN) * 2.5);
+    const dist = Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2);
+    if (dist <= r + 4 && dist < foundR) { found = s; foundR = dist; }
+  });
+
+  if (found) {
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+    tooltip.style.top  = (e.clientY - rect.top - 10) + 'px';
+    tooltip.innerHTML = `<b>${escHtml(found.name)}</b><br>
+      Se=${(found.Se*100).toFixed(1)}%, Sp=${(found.Sp*100).toFixed(1)}%<br>
+      TP=${found.tp} FP=${found.fp} FN=${found.fn} TN=${found.tn}<br>
+      N=${Math.round(found.N)}, DOR=${found.DOR.toFixed(1)}`;
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+
+document.getElementById('srocCanvas').addEventListener('mouseleave', function() {
+  document.getElementById('canvasTooltip').style.display = 'none';
+});
+
+/* ── Export functions ── */
+function exportPNG() {
+  const canvas = document.getElementById('srocCanvas');
+  const link = document.createElement('a');
+  link.download = 'sroc-curve.png';
+  link.href = canvas.toDataURL('image/png');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function exportCSV() {
+  if (!computed || !computed.cs) { alert('No data to export.'); return; }
+  const { cs, pool, dor, lrp, lrn, sroc } = computed;
+  const rows = [
+    ['Study', 'TP', 'FP', 'FN', 'TN', 'N', 'Se(%)', 'Sp(%)', 'DOR', 'LR+', 'LR-'],
+    ...cs.map(s => [
+      s.name, s.tp, s.fp, s.fn, s.tn,
+      Math.round(s.N),
+      (s.Se*100).toFixed(1), (s.Sp*100).toFixed(1),
+      s.DOR.toFixed(2), s.LRpos.toFixed(2), s.LRneg.toFixed(3)
+    ])
+  ];
+  // Summary rows
+  if (pool) {
+    rows.push([]);
+    rows.push(['SUMMARY', '', '', '', '', '', '', '', '', '', '']);
+    rows.push(['Pooled Se', '', '', '', '', '', (pool.pooledSe*100).toFixed(1), '', '', '', '']);
+    rows.push(['Pooled Sp', '', '', '', '', '', '', (pool.pooledSp*100).toFixed(1), '', '', '']);
+    if (sroc) rows.push(['AUC', '', '', '', '', '', '', '', sroc.AUC.toFixed(4), '', '']);
+  }
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'sroc-data.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportHTMLReport() {
+  if (!computed || !computed.pool) { alert('No computed results to report.'); return; }
+  const { pool, sroc, dor, lrp, lrn } = computed;
+  const canvasDataURL = document.getElementById('srocCanvas').toDataURL('image/png');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SROC Report</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #212529; }
+  h1 { color: #2563eb; } h2 { color: #495057; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; margin: 12px 0; }
+  th { background: #f1f3f5; padding: 7px 10px; border: 1px solid #dee2e6; }
+  td { padding: 6px 10px; border: 1px solid #dee2e6; }
+  tr:nth-child(even) td { background: #f8f9fa; }
+  img { max-width: 100%; border: 1px solid #dee2e6; border-radius: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; text-align: center; }
+  .val { font-size: 1.3rem; font-weight: 700; color: #2563eb; }
+  .lbl { font-size: .8rem; color: #6c757d; }
+</style>
+</head>
+<body>
+  <h1>SROC Meta-Analysis Report</h1>
+  <p>Generated by SROCPlotter &mdash; ${new Date().toLocaleDateString()}</p>
+  <h2>SROC Curve</h2>
+  <img src="${canvasDataURL}" alt="SROC Curve">
+  <h2>Summary Statistics</h2>
+  <div class="grid">
+    <div class="card"><div class="val">${(pool.pooledSe*100).toFixed(1)}%</div><div class="lbl">Pooled Sensitivity<br>[${(pool.seCIlo*100).toFixed(1)}&ndash;${(pool.seCIhi*100).toFixed(1)}%]</div></div>
+    <div class="card"><div class="val">${(pool.pooledSp*100).toFixed(1)}%</div><div class="lbl">Pooled Specificity<br>[${(pool.spCIlo*100).toFixed(1)}&ndash;${(pool.spCIhi*100).toFixed(1)}%]</div></div>
+    ${sroc ? `<div class="card"><div class="val">${sroc.AUC.toFixed(4)}</div><div class="lbl">AUC [&Phi;(&Lambda;/&radic;2)]</div></div>` : ''}
+    ${dor ? `<div class="card"><div class="val">${dor.pooledDOR.toFixed(1)}</div><div class="lbl">Pooled DOR<br>[${dor.DORlo.toFixed(1)}&ndash;${dor.DORhi.toFixed(1)}]</div></div>` : ''}
+    ${lrp ? `<div class="card"><div class="val">${lrp.pooled.toFixed(2)}</div><div class="lbl">Pooled LR+</div></div>` : ''}
+    ${lrn ? `<div class="card"><div class="val">${lrn.pooled.toFixed(3)}</div><div class="lbl">Pooled LR&minus;</div></div>` : ''}
+  </div>
+  <h2>Per-Study Data</h2>
+  <table>
+    <thead><tr><th>Study</th><th>TP</th><th>FP</th><th>FN</th><th>TN</th><th>Se (%)</th><th>Sp (%)</th><th>DOR</th></tr></thead>
+    <tbody>
+    ${computed.cs.map(s => `<tr>
+      <td>${escHtml(s.name)}</td>
+      <td>${s.tp}</td><td>${s.fp}</td><td>${s.fn}</td><td>${s.tn}</td>
+      <td>${(s.Se*100).toFixed(1)}</td>
+      <td>${(s.Sp*100).toFixed(1)}</td>
+      <td>${s.DOR.toFixed(2)}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table>
+  <p style="font-size:.8rem; color:#6c757d; margin-top:20px;">
+    Statistical methods: Moses-Littenberg SROC; DerSimonian-Laird pooling on logit scale;
+    AUC = &Phi;(&Lambda;/&radic;2); CI ellipse uses &radic;&chi;&sup2;(0.05,2) = 2.448.
+  </p>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'sroc-report.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ── localStorage persistence ── */
+const STORAGE_KEY = 'srocplotter_state_v1';
+
+function saveState() {
+  try {
+    const state = {
+      studies,
+      dark: document.body.classList.contains('dark'),
+      cc: document.getElementById('ccBox').checked,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch(e) { /* quota exceeded — ignore */ }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const state = JSON.parse(raw);
+    if (state.dark) document.body.classList.add('dark');
+    if (state.cc === false) document.getElementById('ccBox').checked = false;
+    if (Array.isArray(state.studies) && state.studies.length > 0) {
+      studies = state.studies;
+    }
+  } catch(e) { /* corrupt state — ignore */ }
+}
+
+/* ── Keyboard: Enter to add study ── */
+['inp-name','inp-tp','inp-fp','inp-fn','inp-tn'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addStudy();
+  });
+});
+
+/* ── Bubble scale label sync ── */
+document.getElementById('bubbleScale').addEventListener('input', function() {
+  document.getElementById('bubbleScaleVal').textContent = parseFloat(this.value).toFixed(1) + '×';
+});
+
+/* ── Init ── */
+function init() {
+  loadState();
+  recompute();
+  // Draw on plot tab activation
+  document.getElementById('tab-plot').addEventListener('click', function() {
+    setTimeout(drawSROC, 60);
+  });
+}
+
+setTimeout(init, 0);
+</script>
+</body>
+</html>
